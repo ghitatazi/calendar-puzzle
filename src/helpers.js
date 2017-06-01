@@ -1,31 +1,55 @@
-export class CancellableRequest {
-	// TODO
-	start() {
+import _ from 'lodash';
 
+export class CancellableRequest {
+	constructor(props) {
+		this.url = props.url;
+		this.cb = props.cb;
+		this.start = this.start.bind(this);
+		this.cancel = this.cancel.bind(this);
+	}
+	start() {
+		fetch(this.url, {
+	    	method: 'get'
+	  	})
+	  	.then(response => response.json())
+		.then(events => {
+			console.log(events);
+			this.cb(events);
+		});
 	}
 	cancel() {
-		
+		// callback does not call setState
+		this.cb = () => { return; }
 	}
 }
 
 export function timeToTop({ time, fromTime, toTime, height }) {
-	// TODO
-	// retourne une valeur en pixels
-	return 0;
+	return (height * (time - fromTime)) / (toTime - fromTime);
 }
 
 export function range(from, to, step = 1) {
-	// TODO
-	return [];
+	return _.range(from, to+step, step);
 }
 
 export function formatEvents(events) {
-	// TODO
-	return events;
+	let newEvents = events.map(eventObj => {
+						let startTimeMinutes = eventObj['start'].split(":")[0]*60+parseInt(eventObj['start'].split(":")[1]);
+						return {
+							...eventObj,
+							startTime: startTimeMinutes,
+							endTime: startTimeMinutes+eventObj['duration']
+						}
+					});
+	return newEvents;
 }
 
 export function groupEvents(events) {
-	return events.reduce( (groups, event) => {
+	let sortedEvents = events.sort( (x, y) => {
+		return (
+			   x.startTime - y.startTime
+		);
+	});
+	return sortedEvents.reduce( (groups, event) => {
 		const overlappingGroup = groups.find(
 			group => overlaps(group, event.startTime, event.endTime)
 		);
@@ -45,21 +69,48 @@ export function groupEvents(events) {
 }
 
 export function overlaps(group, startTime, endTime) {
-	// TODO
-	// retourne true si l'event allant de startTime à endTime recoupe group
-	// false sinon
+	if ((startTime >= group.startTime && startTime <= group.endTime) ||
+		(endTime >= group.startTime && endTime <= group.endTime)) {
+		return true;
+	}
 	return false;
 }
 
 export function stackGroupEvents(events) {
-	return events.sort( (x, y) => {
+	let sortedEvents = events.sort( (x, y) => {
 		return (
 			   x.startTime - y.startTime
 			|| y.duration - x.duration
 			|| x.id - y.id
 		);
-	}).reduce( (stacks, event) => {
-		// TODO
+	});
+
+	return sortedEvents.reduce( (stacks, event) => {
+		// nous recherchons dans les colonnes déjà définies
+		// s'il y en a une ou le endTime <= startTime de l'event
+		const existingStack = stacks.find(
+			stack => comesAfter(stack, event.startTime)
+		);
+
+		if (!existingStack) {
+			stacks.push({
+				startTime: event.startTime,
+				endTime: event.endTime,
+				events: [event]
+			});
+		} else {
+			existingStack.endTime = event.endTime;
+			existingStack.events.push(event);
+		}
 		return stacks;
 	}, []);
 }
+
+export function comesAfter(stack, startTime) {
+	if (startTime >= stack.endTime) {
+		return true;
+	}
+	return false;
+}
+
+
